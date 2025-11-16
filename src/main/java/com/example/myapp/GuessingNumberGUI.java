@@ -11,15 +11,17 @@ public class GuessingNumberGUI {
     // Game Constants
     private static final int MAX_NUMBER = 100;
     private static final int MIN_NUMBER = 1;
+    private static final Random RANDOM = new Random();
 
-    // UI Constants
-    private static final Font FONT_TITLE = new Font("微软雅黑", Font.BOLD, 20);
-    private static final Font FONT_LABEL = new Font("微软雅黑", Font.PLAIN, 14);
-    private static final Font FONT_INPUT = new Font("微软雅黑", Font.PLAIN, 14);
-    private static final Font FONT_BUTTON = new Font("微软雅黑", Font.BOLD, 14);
-    private static final Font FONT_MESSAGE = new Font("微软雅黑", Font.PLAIN, 16);
-    private static final Font FONT_ATTEMPTS = new Font("微软雅黑", Font.ITALIC, 12);
-    private static final Font FONT_HISTORY = new Font("微软雅黑", Font.PLAIN, 12);
+    // UI Constants - Use cross-platform font fallback
+    private static final String FONT_NAME = getFontName();
+    private static final Font FONT_TITLE = new Font(FONT_NAME, Font.BOLD, 20);
+    private static final Font FONT_LABEL = new Font(FONT_NAME, Font.PLAIN, 14);
+    private static final Font FONT_INPUT = new Font(FONT_NAME, Font.PLAIN, 14);
+    private static final Font FONT_BUTTON = new Font(FONT_NAME, Font.BOLD, 14);
+    private static final Font FONT_MESSAGE = new Font(FONT_NAME, Font.PLAIN, 16);
+    private static final Font FONT_ATTEMPTS = new Font(FONT_NAME, Font.ITALIC, 12);
+    private static final Font FONT_HISTORY = new Font(FONT_NAME, Font.PLAIN, 12);
 
     private static final Color COLOR_BACKGROUND = new Color(245, 245, 245);
     private static final Color COLOR_GUESS_BUTTON = new Color(60, 179, 113);
@@ -47,39 +49,84 @@ public class GuessingNumberGUI {
     private int attempts;
     private List<String> guessHistory;
 
+    /**
+     * Get best available Chinese font for the system
+     */
+    private static String getFontName() {
+        GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        String[] availableFonts = ge.getAvailableFontFamilyNames();
+        
+        // Platform-specific preferred fonts (in priority order)
+        String[] preferredFonts;
+        String os = System.getProperty("os.name").toLowerCase();
+        
+        if (os.contains("win")) {
+            preferredFonts = new String[]{"Microsoft YaHei", "微软雅黑", "SimHei"};
+        } else if (os.contains("mac")) {
+            preferredFonts = new String[]{"PingFang SC", "Hiragino Sans GB", "STHeiti"};
+        } else {
+            preferredFonts = new String[]{"Noto Sans CJK SC", "WenQuanYi Micro Hei", "Droid Sans Fallback"};
+        }
+        
+        // Find first available preferred font
+        for (String preferred : preferredFonts) {
+            for (String available : availableFonts) {
+                if (available.equals(preferred)) {
+                    return preferred;
+                }
+            }
+        }
+        
+        // Fallback to Java logical font (always available)
+        return Font.SANS_SERIF;
+    }
+
     public GuessingNumberGUI() {
         initUI();
         startNewGame();
     }
 
     private void initUI() {
-        setNimbusLookAndFeel();
+        setSystemLookAndFeel();
 
         frame = new JFrame("猜数字游戏");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout(10, 10));
-        frame.setSize(450, 350);
 
         JPanel mainPanel = createMainPanel();
         frame.add(mainPanel, BorderLayout.CENTER);
 
         setupActionListeners();
 
+        frame.pack();
+        frame.setMinimumSize(new Dimension(400, 320));
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
     }
 
-    private void setNimbusLookAndFeel() {
+    private void setSystemLookAndFeel() {
         try {
-            for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {
-                if ("Nimbus".equals(info.getName())) {
-                    UIManager.setLookAndFeel(info.getClassName());
-                    return;
+            String os = System.getProperty("os.name").toLowerCase();
+            
+            // Windows and macOS: use native look and feel
+            if (os.contains("mac") || os.contains("win")) {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            } else {
+                // Linux: try Nimbus, fallback to system
+                boolean nimbusSet = false;
+                for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {
+                    if ("Nimbus".equals(info.getName())) {
+                        UIManager.setLookAndFeel(info.getClassName());
+                        nimbusSet = true;
+                        break;
+                    }
+                }
+                if (!nimbusSet) {
+                    UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
                 }
             }
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception e) {
-            e.printStackTrace(); // Log error if L&F setting fails
+            System.err.println("Failed to set Look and Feel: " + e.getMessage());
         }
     }
 
@@ -118,11 +165,14 @@ public class GuessingNumberGUI {
 
         guessField = new JTextField(10);
         guessField.setFont(FONT_INPUT);
+        guessField.setToolTipText("输入1-100之间的数字");
 
         guessButton = new JButton("猜!");
         guessButton.setFont(FONT_BUTTON);
         guessButton.setBackground(COLOR_GUESS_BUTTON);
         guessButton.setForeground(COLOR_WHITE);
+        guessButton.setMnemonic('C'); // Alt+C shortcut
+        guessButton.setToolTipText("提交你的猜测 (或按 Enter 键)");
 
         inputPanel.add(guessLabel);
         inputPanel.add(guessField);
@@ -148,7 +198,7 @@ public class GuessingNumberGUI {
 
     private JScrollPane createHistoryScrollPane() {
         guessHistory = new ArrayList<>();
-        historyArea = new JTextArea();
+        historyArea = new JTextArea(5, 20); // Use row/column instead of pixels
         historyArea.setFont(FONT_HISTORY);
         historyArea.setEditable(false);
         historyArea.setLineWrap(true);
@@ -156,7 +206,6 @@ public class GuessingNumberGUI {
 
         JScrollPane historyScrollPane = new JScrollPane(historyArea);
         historyScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        historyScrollPane.setPreferredSize(new Dimension(150, 80));
         return historyScrollPane;
     }
 
@@ -166,6 +215,8 @@ public class GuessingNumberGUI {
         newGameButton.setAlignmentX(Component.CENTER_ALIGNMENT);
         newGameButton.setBackground(COLOR_NEW_GAME_BUTTON);
         newGameButton.setForeground(COLOR_WHITE);
+        newGameButton.setMnemonic('N'); // Alt+N shortcut
+        newGameButton.setToolTipText("开始一个新的猜数字游戏");
         newGameButton.setVisible(false);
         return newGameButton;
     }
@@ -177,8 +228,7 @@ public class GuessingNumberGUI {
     }
 
     private void startNewGame() {
-        Random rand = new Random();
-        secretNumber = rand.nextInt(MAX_NUMBER) + MIN_NUMBER;
+        secretNumber = RANDOM.nextInt(MAX_NUMBER) + MIN_NUMBER;
         attempts = 0;
         guessHistory.clear();
         updateMessage("游戏开始！请输入你的猜测。", COLOR_MSG_DEFAULT);
@@ -230,7 +280,7 @@ public class GuessingNumberGUI {
             endGame();
         }
 
-        attemptsLabel.setText("尝试次数: " + attempts);
+        attemptsLabel.setText(String.format("尝试次数: %d", attempts));
         guessHistory.add(guess + result);
         updateHistory();
     }
@@ -258,6 +308,13 @@ public class GuessingNumberGUI {
     }
 
     public static void main(String[] args) {
+        // macOS-specific UI settings
+        String os = System.getProperty("os.name").toLowerCase();
+        if (os.contains("mac")) {
+            System.setProperty("apple.awt.application.name", "猜数字游戏");
+            System.setProperty("apple.laf.useScreenMenuBar", "true");
+        }
+        
         SwingUtilities.invokeLater(GuessingNumberGUI::new);
     }
 }

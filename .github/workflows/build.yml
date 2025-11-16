@@ -2,11 +2,8 @@ name: Build Installers
 
 on:
   push:
-    branches: [ master ]
     tags:
-      - 'v*'  # 当推送 v1.0.0 这样的标签时触发
-  pull_request:
-    branches: [ master ]
+      - 'v*'
   workflow_dispatch:
 
 jobs:
@@ -15,27 +12,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - name: Set up GraalVM 17
+        uses: graalvm/setup-graalvm@v1
         with:
           java-version: '17'
-          distribution: 'temurin'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: 'maven'
       
       - name: Install WiX Toolset
-        run: |
-          choco install wixtoolset -y
+        run: choco install wixtoolset -y
           
       - name: Build with Maven
-        run: mvn clean package -q
-        
-      - name: Build MSI with jpackage
+        run: mvn clean package --batch-mode
+      
+      - name: Verify JAR
         run: |
-          jpackage --type msi --name GuessingNumberGame --app-version 1.0.0 --vendor Example --input target --main-jar myappgui-1.0.0.jar --main-class com.example.myapp.GuessingNumberGUI --dest installer --win-dir-chooser --win-menu --win-shortcut
+          if (!(Test-Path target\myappgui-1.0.0.jar)) {
+            Write-Error "JAR file not found!"
+            exit 1
+          }
+        
+      - name: Build MSI with bundled JRE
+        run: |
+          jpackage `
+            --type msi `
+            --name GuessingNumberGame `
+            --app-version 1.0.0 `
+            --vendor Example `
+            --input target `
+            --main-jar myappgui-1.0.0.jar `
+            --main-class com.example.myapp.GuessingNumberGUI `
+            --runtime-image "$env:JAVA_HOME" `
+            --dest installer `
+            --win-dir-chooser `
+            --win-menu `
+            --win-shortcut
           
       - name: Upload MSI
         uses: actions/upload-artifact@v4
         with:
-          name: windows-msi
+          name: windows-x64-msi
           path: installer/*.msi
 
   build-macos:
@@ -43,23 +60,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - name: Set up GraalVM 17
+        uses: graalvm/setup-graalvm@v1
         with:
           java-version: '17'
-          distribution: 'temurin'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: 'maven'
           
       - name: Build with Maven
-        run: mvn clean package -q
-        
-      - name: Build DMG with jpackage
+        run: mvn clean package --batch-mode
+      
+      - name: Verify JAR
         run: |
-          jpackage --type dmg --name GuessingNumberGame --app-version 1.0.0 --vendor Example --input target --main-jar myappgui-1.0.0.jar --main-class com.example.myapp.GuessingNumberGUI --dest installer
+          if [ ! -f target/myappgui-1.0.0.jar ]; then
+            echo "JAR file not found!"
+            exit 1
+          fi
+        
+      - name: Build DMG with bundled JRE
+        run: |
+          jpackage \
+            --type dmg \
+            --name GuessingNumberGame \
+            --app-version 1.0.0 \
+            --vendor Example \
+            --input target \
+            --main-jar myappgui-1.0.0.jar \
+            --main-class com.example.myapp.GuessingNumberGUI \
+            --runtime-image "$JAVA_HOME" \
+            --dest installer
           
       - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
-          name: macos-dmg
+          name: macos-arm64-dmg
           path: installer/*.dmg
 
   release:
@@ -73,13 +108,13 @@ jobs:
       - name: Download Windows MSI
         uses: actions/download-artifact@v4
         with:
-          name: windows-msi
+          name: windows-x64-msi
           path: artifacts/
           
       - name: Download macOS DMG
         uses: actions/download-artifact@v4
         with:
-          name: macos-dmg
+          name: macos-arm64-dmg
           path: artifacts/
           
       - name: Create Release
@@ -87,6 +122,5 @@ jobs:
         with:
           files: artifacts/*
           generate_release_notes: true
-          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
