@@ -206,7 +206,7 @@ public class GuessingNumberGUI {
 
         // 2. Validate Input
         if (guess < MIN_NUMBER || guess > MAX_NUMBER) {
-            updateMessage("请输入 " + MIN_NUMBER + "-" + MAX_NUMBER + " 之间的数字!", COLOR_MSG_WARNING);
+            updateMessage("请输入1-100之间的数字!", COLOR_MSG_WARNING);
             return;
         }
 
