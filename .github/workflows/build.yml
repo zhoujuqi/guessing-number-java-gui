@@ -18,6 +18,10 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+      
+      - name: Install WiX Toolset
+        run: |
+          choco install wixtoolset -y
           
       - name: Build with Maven
         run: mvn clean package -q
@@ -33,7 +37,7 @@ jobs:
           path: installer/*.msi
 
   build-macos:
-    runs-on: macos-latest
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
       
