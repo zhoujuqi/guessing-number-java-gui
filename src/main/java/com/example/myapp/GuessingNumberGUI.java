@@ -103,7 +103,7 @@ public class GuessingNumberGUI {
     }
 
     private JLabel createTitleLabel() {
-        JLabel titleLabel = new JLabel("猜一个 " + MIN_NUMBER + "-" + MAX_NUMBER + " 之间的数字");
+        JLabel titleLabel = new JLabel("猜一个1-100之间的数字");
         titleLabel.setFont(FONT_TITLE);
         titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
         return titleLabel;
